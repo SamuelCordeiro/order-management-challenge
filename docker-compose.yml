@@ -16,6 +16,22 @@ services:
       retries: 10
       start_period: 10s
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      # The management interface is exposed only by the local Compose environment.
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   api:
     build:
       context: .
@@ -24,10 +40,19 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       HttpsRedirection__Enabled: "false"
       ConnectionStrings__OrdersDatabase: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__Username: ${RABBITMQ_USER}
+      RabbitMq__Password: ${RABBITMQ_PASSWORD}
+      RabbitMq__Exchange: ${RABBITMQ_EXCHANGE}
+      RabbitMq__Queue: ${RABBITMQ_QUEUE}
+      RabbitMq__RoutingKey: ${RABBITMQ_ROUTING_KEY}
     ports:
       - "${API_PORT:-8080}:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://localhost:8080/health/live || exit 1"]
@@ -35,6 +60,26 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  worker:
+    build:
+      context: .
+      dockerfile: src/OrderManagement.Worker/Dockerfile
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__OrdersDatabase: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__Username: ${RABBITMQ_USER}
+      RabbitMq__Password: ${RABBITMQ_PASSWORD}
+      RabbitMq__Exchange: ${RABBITMQ_EXCHANGE}
+      RabbitMq__Queue: ${RABBITMQ_QUEUE}
+      RabbitMq__RoutingKey: ${RABBITMQ_ROUTING_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
 volumes:
   postgres-data:
