@@ -4,7 +4,7 @@ Sistema de gestão de pedidos desenvolvido como desafio técnico, com .NET, Reac
 
 ## Estado atual
 
-O incremento `feature/messaging-worker` está preparando RabbitMQ e o processo Worker. A publicação e o consumo de `OrderCreated` serão adicionados no próximo passo do mesmo incremento, após o contrato de evento estar definido.
+O incremento `feature/messaging-worker` publica `OrderCreated` após persistir um pedido e o Worker o processa de forma assíncrona, com retentativas e fila de erro.
 
 ## Executar a API
 
@@ -14,6 +14,23 @@ O incremento `feature/messaging-worker` está preparando RabbitMQ e o processo W
 
    ```powershell
    dotnet user-secrets set "ConnectionStrings:OrdersDatabase" "Host=localhost;Port=5432;Database=orders;Username=postgres;Password=sua-senha" --project src/OrderManagement.Api
+   ```
+
+   Para publicar eventos fora do Compose, configure também o RabbitMQ local:
+
+   ```powershell
+   dotnet user-secrets set "RabbitMq:Host" "localhost" --project src/OrderManagement.Api
+   dotnet user-secrets set "RabbitMq:Username" "orders" --project src/OrderManagement.Api
+   dotnet user-secrets set "RabbitMq:Password" "sua-senha" --project src/OrderManagement.Api
+   dotnet user-secrets set "RabbitMq:Exchange" "order.events" --project src/OrderManagement.Api
+   dotnet user-secrets set "RabbitMq:Queue" "order.created.v1" --project src/OrderManagement.Api
+   dotnet user-secrets set "RabbitMq:RoutingKey" "order.created.v1" --project src/OrderManagement.Api
+   dotnet user-secrets set "RabbitMq:ErrorExchange" "order.events.error" --project src/OrderManagement.Api
+   dotnet user-secrets set "RabbitMq:ErrorQueue" "order.created.v1.error" --project src/OrderManagement.Api
+   dotnet user-secrets set "RabbitMq:ErrorRoutingKey" "order.created.v1.error" --project src/OrderManagement.Api
+   dotnet user-secrets set "RabbitMq:RetryExchange" "order.events.retry" --project src/OrderManagement.Api
+   dotnet user-secrets set "RabbitMq:RetryQueue" "order.created.v1.retry" --project src/OrderManagement.Api
+   dotnet user-secrets set "RabbitMq:RetryRoutingKey" "order.created.v1.retry" --project src/OrderManagement.Api
    ```
 
 2. No Visual Studio, selecione o perfil **IIS Express** e execute. O navegador abrirá em `https://localhost:44395/swagger`.
@@ -39,24 +56,34 @@ dotnet ef migrations add NomeDaMigration --project src/OrderManagement.Infrastru
    docker compose up --build
    ```
 
-O Compose aguarda PostgreSQL e RabbitMQ ficarem saudáveis antes de iniciar API e Worker. A API aplica a migration automaticamente, o Swagger fica em `http://localhost:8080/swagger` e a interface local do RabbitMQ fica em `http://localhost:15672` (credenciais `RABBITMQ_USER` e `RABBITMQ_PASSWORD`). Para encerrar mantendo os dados, execute `docker compose down`.
+O Compose aguarda PostgreSQL e RabbitMQ ficarem saudáveis antes de iniciar API e Worker. As portas publicadas ficam restritas a `localhost`: Swagger em `http://localhost:8080/swagger` e Management UI em `http://localhost:15672` (credenciais `RABBITMQ_USER` e `RABBITMQ_PASSWORD`). Para encerrar mantendo os dados, execute `docker compose down`.
+
+`/health` da API e do Worker valida PostgreSQL e RabbitMQ; `/health/live` valida somente que o processo está ativo. O endpoint do Worker fica interno ao Compose e é usado pelo health check do container.
 
 ### Testes
 
-Os testes de domínio protegem a criação do pedido e as transições obrigatórias de status:
+Os testes de domínio protegem a criação e as transições obrigatórias de status. O teste de aplicação protege o limite transacional do caso de uso: o pedido é persistido antes de `OrderCreated` ser publicado.
 
 ```powershell
 dotnet test src/OrderManagement.sln --no-restore
 ```
 
-Para validar a integração manualmente, suba o Compose, abra o Swagger, crie um pedido e consulte `GET /orders`. O pedido deve permanecer como `pendente` até a entrega do Worker no próximo incremento.
+Para validar a integração manualmente, suba o Compose, abra o Swagger e crie um pedido. A API o persiste como `pendente` e publica um evento na exchange `order.events`, direcionado à fila `order.created.v1`. O Worker o move para `processando` e o finaliza cinco segundos depois.
+
+### Mensageria
+
+O contrato compartilhado `OrderCreated` contém `messageId`, `orderId`, `correlationId`, `eventType` e `occurredAt`. Para cada pedido criado, `correlationId` é igual a `orderId` e `eventType` é `OrderCreated`.
+
+A API declara explicitamente exchange direta, fila e binding, publica mensagens persistentes e aguarda a confirmação do broker antes de retornar sucesso. O Worker usa `ack` manual, prefetch de uma mensagem e as transições do agregado para tratar reentregas com idempotência: `Pendente` inicia o processamento, `Processando` conclui após cinco segundos e `Finalizado` é somente reconhecido.
+
+Falhas transitórias são republicadas na fila de retry, que possui TTL de cinco segundos e devolve a mensagem à fila principal. Após `RABBITMQ_MAX_DELIVERY_ATTEMPTS`, ou quando a mensagem é inválida, ela é encaminhada para a DLQ `order.created.v1.error`. Os nomes de fila são versionados porque os argumentos de uma fila RabbitMQ são imutáveis depois da criação; uma alteração de topologia em produção deve criar uma nova versão e drenar a anterior. Nesta etapa, persistência no PostgreSQL e publicação no RabbitMQ ainda não formam uma única transação: se o banco confirmar e o broker falhar, o pedido fica persistido sem evento. Este trade-off é deliberado e será resolvido pelo **Outbox Pattern** no refinamento de confiabilidade.
 
 ## Endpoints disponíveis
 
 - `POST /orders` cria um pedido em `pendente`.
 - `GET /orders` lista pedidos, do mais recente para o mais antigo.
 - `GET /orders/{id}` retorna um pedido ou `404`.
-- `GET /health` verifica a API e o PostgreSQL.
+- `GET /health` verifica a API, o PostgreSQL e o RabbitMQ.
 - `GET /health/live` verifica que o processo está vivo, sem depender do banco.
 
 Em ambiente `Development`, a documentação interativa está disponível em `/swagger`.
@@ -81,4 +108,4 @@ Exemplo de criação:
 - **Segredos fora do repositório:** a string de conexão vem de `ConnectionStrings__OrdersDatabase`; `.env.example` só documenta o formato e `.env` continua ignorado pelo Git.
 - **HTTPS por ambiente:** IIS Express mantém redirecionamento HTTPS. O Compose local o desabilita porque expõe apenas HTTP; no deploy, o proxy reverso será responsável por TLS e essa configuração continuará explícita.
 - **RabbitMQ isolado por configuração:** host, credenciais, exchange, fila e routing key são variáveis de ambiente. A UI de management existe somente no Compose local para demonstrar a topologia e os consumidores, sem virar uma dependência da aplicação.
-- **Worker independente:** o serviço executa no seu próprio processo e imagem, mas reutiliza os limites de aplicação e infraestrutura necessários para acessar o mesmo banco. O consumidor será acoplado somente depois de o contrato `OrderCreated` estar estabelecido.
+- **Worker independente:** o serviço executa em processo e imagem próprios, reutilizando somente contratos, aplicação e infraestrutura necessários. Ele expõe health checks internamente e consome a fila sem acoplar regras de negócio ao AMQP.
