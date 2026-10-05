@@ -1,0 +1,48 @@
+# .NET and Visual Studio
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# Node.js and frontend tooling
+node_modules/
+dist/
+build/
+.next/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local databases and Docker runtime data
+*.db
+*.sqlite
+*.sqlite3
+docker-data/
+
+# Editors and operating systems
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
