@@ -4,6 +4,7 @@ WORKDIR /src
 COPY ["NuGet.config", "."]
 COPY ["src/OrderManagement.Api/OrderManagement.Api.csproj", "src/OrderManagement.Api/"]
 COPY ["src/OrderManagement.Application/OrderManagement.Application.csproj", "src/OrderManagement.Application/"]
+COPY ["src/OrderManagement.Contracts/OrderManagement.Contracts.csproj", "src/OrderManagement.Contracts/"]
 COPY ["src/OrderManagement.Domain/OrderManagement.Domain.csproj", "src/OrderManagement.Domain/"]
 COPY ["src/OrderManagement.Infrastructure/OrderManagement.Infrastructure.csproj", "src/OrderManagement.Infrastructure/"]
 RUN dotnet restore "src/OrderManagement.Api/OrderManagement.Api.csproj"
