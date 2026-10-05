@@ -1,6 +1,7 @@
 # .NET and Visual Studio
 [Bb]in/
 [Oo]bj/
+.nuget/
 [Ll]og/
 [Ll]ogs/
 .vs/
