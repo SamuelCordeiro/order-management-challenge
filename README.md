@@ -4,7 +4,7 @@ Sistema de gestão de pedidos desenvolvido como desafio técnico, com .NET, Reac
 
 ## Estado atual
 
-O incremento `feature/backend-orders` implementa o núcleo HTTP, persistência e execução local com Docker Compose. Mensageria, worker e frontend permanecem nos próximos incrementos para manter cada mudança pequena e demonstrável.
+O incremento `feature/messaging-worker` está preparando RabbitMQ e o processo Worker. A publicação e o consumo de `OrderCreated` serão adicionados no próximo passo do mesmo incremento, após o contrato de evento estar definido.
 
 ## Executar a API
 
@@ -33,13 +33,13 @@ dotnet ef migrations add NomeDaMigration --project src/OrderManagement.Infrastru
 ### Docker Compose
 
 1. Copie `.env.example` para `.env` e defina uma senha local para `POSTGRES_PASSWORD`.
-2. Suba a API e o PostgreSQL:
+2. Suba a API, o PostgreSQL, o RabbitMQ e o Worker:
 
    ```powershell
    docker compose up --build
    ```
 
-O Compose aguarda o PostgreSQL estar saudável, a API aplica a migration automaticamente e o Swagger fica em `http://localhost:8080/swagger`. Para encerrar mantendo os dados, execute `docker compose down`.
+O Compose aguarda PostgreSQL e RabbitMQ ficarem saudáveis antes de iniciar API e Worker. A API aplica a migration automaticamente, o Swagger fica em `http://localhost:8080/swagger` e a interface local do RabbitMQ fica em `http://localhost:15672` (credenciais `RABBITMQ_USER` e `RABBITMQ_PASSWORD`). Para encerrar mantendo os dados, execute `docker compose down`.
 
 ### Testes
 
@@ -80,3 +80,5 @@ Exemplo de criação:
 - **Health checks separados:** readiness (`/health`) inclui o banco; liveness (`/health/live`) não inclui dependências externas, evitando reinícios indevidos quando o PostgreSQL estiver temporariamente indisponível.
 - **Segredos fora do repositório:** a string de conexão vem de `ConnectionStrings__OrdersDatabase`; `.env.example` só documenta o formato e `.env` continua ignorado pelo Git.
 - **HTTPS por ambiente:** IIS Express mantém redirecionamento HTTPS. O Compose local o desabilita porque expõe apenas HTTP; no deploy, o proxy reverso será responsável por TLS e essa configuração continuará explícita.
+- **RabbitMQ isolado por configuração:** host, credenciais, exchange, fila e routing key são variáveis de ambiente. A UI de management existe somente no Compose local para demonstrar a topologia e os consumidores, sem virar uma dependência da aplicação.
+- **Worker independente:** o serviço executa no seu próprio processo e imagem, mas reutiliza os limites de aplicação e infraestrutura necessários para acessar o mesmo banco. O consumidor será acoplado somente depois de o contrato `OrderCreated` estar estabelecido.
