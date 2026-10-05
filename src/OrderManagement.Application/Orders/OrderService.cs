@@ -1,14 +1,28 @@
+using OrderManagement.Application.Messaging;
+using OrderManagement.Contracts.Messaging;
 using OrderManagement.Domain.Orders;
 
 namespace OrderManagement.Application.Orders;
 
-public sealed class OrderService(IOrderRepository repository, TimeProvider timeProvider)
+public sealed class OrderService(
+    IOrderRepository repository,
+    IOrderCreatedPublisher publisher,
+    TimeProvider timeProvider)
 {
     public async Task<OrderResponse> CreateAsync(CreateOrderCommand command, CancellationToken cancellationToken)
     {
         var order = new Order(Guid.NewGuid(), command.Cliente, command.Produto, command.Valor, timeProvider.GetUtcNow());
         await repository.AddAsync(order, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
+
+        var orderCreated = new OrderCreated(
+            MessageId: Guid.NewGuid(),
+            OrderId: order.Id,
+            CorrelationId: order.Id,
+            EventType: OrderCreated.EventTypeName,
+            OccurredAt: timeProvider.GetUtcNow());
+
+        await publisher.PublishAsync(orderCreated, cancellationToken);
         return ToResponse(order);
     }
 
