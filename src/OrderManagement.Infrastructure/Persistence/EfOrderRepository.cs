@@ -12,8 +12,20 @@ public sealed class EfOrderRepository(OrdersDbContext dbContext) : IOrderReposit
     public Task<Order?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.Orders.SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
 
+    public Task<Order?> GetByIdWithHistoryAsync(Guid id, CancellationToken cancellationToken) =>
+        dbContext.Orders
+            .Include(x => x.StatusHistory)
+            .SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
+
     public async Task<IReadOnlyList<Order>> GetAllAsync(CancellationToken cancellationToken) =>
         await dbContext.Orders.AsNoTracking().OrderByDescending(x => x.CreatedAt).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<OrderStatusHistory>> GetStatusHistoryAsync(Guid orderId, CancellationToken cancellationToken) =>
+        await dbContext.OrderStatusHistories
+            .AsNoTracking()
+            .Where(x => x.OrderId == orderId)
+            .OrderBy(x => x.OccurredAt)
+            .ToListAsync(cancellationToken);
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
 }

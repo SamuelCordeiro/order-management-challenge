@@ -43,8 +43,14 @@ public sealed class OrderServiceTests
         public Task<Order?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(_orders.SingleOrDefault(order => order.Id == id));
 
+        public Task<Order?> GetByIdWithHistoryAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(_orders.SingleOrDefault(order => order.Id == id));
+
         public Task<IReadOnlyList<Order>> GetAllAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<Order>>(_orders);
+
+        public Task<IReadOnlyList<OrderStatusHistory>> GetStatusHistoryAsync(Guid orderId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<OrderStatusHistory>>([]);
 
         public Task SaveChangesAsync(CancellationToken cancellationToken)
         {
