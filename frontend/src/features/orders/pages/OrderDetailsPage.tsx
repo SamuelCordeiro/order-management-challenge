@@ -6,13 +6,16 @@ import { useTranslation } from 'react-i18next';
 import { AppSettings } from '../../../app/AppSettings';
 import { OrderStatusChip } from '../components/OrderStatusChip';
 import { OrderWorkflow } from '../components/OrderWorkflow';
+import { OrderStatusHistory } from '../components/OrderStatusHistory';
 import { useOrder } from '../hooks/useOrder';
+import { useOrderStatusHistory } from '../hooks/useOrderStatusHistory';
 import { formatCurrency, formatDate } from '../utils/formatters';
 
 export function OrderDetailsPage() {
   const { i18n, t } = useTranslation();
   const { id = '' } = useParams();
   const { data: order, isError, isFetching, isPending, refetch } = useOrder(id);
+  const history = useOrderStatusHistory(id);
 
   return (
     <Box component="main" minHeight="100vh" py={{ xs: 4, md: 6 }}>
@@ -59,6 +62,7 @@ export function OrderDetailsPage() {
                 </Grid>
               </CardContent>
             </Card>
+            <OrderStatusHistory history={history.data} isError={history.isError} isPending={history.isPending} />
             {isFetching && <Typography color="text.secondary" display="block" mt={2} variant="caption">{t('orderDetails.refreshing')}</Typography>}
           </>
         )}

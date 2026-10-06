@@ -60,6 +60,15 @@ const resources = {
         information: 'Informações',
         refreshing: 'Atualizando dados…'
       },
+      orderHistory: {
+        title: 'Histórico de status',
+        subtitle: 'Registro imutável das transições do pedido.',
+        loading: 'Carregando histórico',
+        error: 'Não foi possível carregar o histórico de status.',
+        listAriaLabel: 'Histórico de status do pedido',
+        entry: '{{date}} · origem: {{source}}',
+        sources: { api: 'API', worker: 'worker', migration: 'migração' }
+      },
       errors: { requestFailed: 'Não foi possível concluir a solicitação.', loadOrders: 'Não foi possível carregar os pedidos.' }
     }
   },
@@ -115,6 +124,15 @@ const resources = {
         updating: 'Automatic updates are active while the order is processing.',
         information: 'Information',
         refreshing: 'Updating data…'
+      },
+      orderHistory: {
+        title: 'Status history',
+        subtitle: 'Immutable record of the order transitions.',
+        loading: 'Loading history',
+        error: 'Unable to load the status history.',
+        listAriaLabel: 'Order status history',
+        entry: '{{date}} · source: {{source}}',
+        sources: { api: 'API', worker: 'worker', migration: 'migration' }
       },
       errors: { requestFailed: 'Unable to complete the request.', loadOrders: 'Unable to load orders.' }
     }
