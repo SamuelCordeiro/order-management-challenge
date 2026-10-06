@@ -65,10 +65,16 @@ O Compose aguarda PostgreSQL e RabbitMQ ficarem saudáveis antes de iniciar API 
 
 ### Testes
 
-Os testes de domínio protegem a criação, a sequência obrigatória de status e o histórico imutável. O teste de aplicação protege o limite transacional do caso de uso: o pedido é persistido antes de `OrderCreated` ser publicado. No frontend, os testes cobrem formulário, formatação, ordenação, apresentação de status e o contrato SSE.
+Os testes de domínio protegem a criação, a sequência obrigatória de status e o histórico imutável. O teste de aplicação protege o limite transacional do caso de uso: o pedido é persistido antes de `OrderCreated` ser publicado. Os testes de integração sobem PostgreSQL e RabbitMQ efêmeros com Testcontainers e verificam a criação HTTP, a persistência do histórico e o contrato publicado no broker. No frontend, os testes cobrem formulário, formatação, ordenação, apresentação de status e o contrato SSE.
 
 ```powershell
 dotnet test src/OrderManagement.sln --no-restore
+```
+
+Para gerar cobertura no formato consumido pelo CI e pelo SonarQube Cloud:
+
+```powershell
+dotnet test src/OrderManagement.sln --settings coverage.runsettings --collect:"XPlat Code Coverage" --results-directory TestResults
 ```
 
 Os testes de frontend cobrem a submissão e a validação do formulário, além da apresentação dos status:
@@ -77,8 +83,15 @@ Os testes de frontend cobrem a submissão e a validação do formulário, além 
 cd frontend
 npm ci
 npm run test
+npm run test:coverage
 npm run build
 ```
+
+### Qualidade contínua e SonarQube Cloud
+
+O workflow `Quality` executa build, testes de integração, lint, testes de frontend e publica os relatórios de cobertura em pull requests para `develop` e `main`. A análise SonarQube Cloud permanece opcional até o projeto ser conectado, evitando segredos ou identificadores externos no código.
+
+Para ativá-la, crie o segredo de repositório `SONAR_TOKEN` e as variáveis `SONAR_PROJECT_KEY` e `SONAR_ORGANIZATION` no GitHub. Quando os três valores estiverem presentes, o job adicional executará o scanner e reportará o Quality Gate no pull request. O gate deve avaliar principalmente código novo; cobertura global não é usada como meta artificial.
 
 Para validar a integração manualmente, suba o Compose, abra o Swagger e crie um pedido. A API o persiste como `pendente` e publica um evento na exchange `order.events`, direcionado à fila `order.created.v1`. O Worker o move para `processando`, aguarda cinco segundos e o finaliza. Cada transição fica registrada em `order_status_history` e é publicada na exchange `order.status.events`.
 
@@ -95,6 +108,16 @@ A API declara explicitamente exchange direta, fila e binding, publica mensagens 
 Falhas transitórias são republicadas na fila de retry, que possui TTL de cinco segundos e devolve a mensagem à fila principal. Após `RABBITMQ_MAX_DELIVERY_ATTEMPTS`, ou quando a mensagem é inválida, ela é encaminhada para a DLQ `order.created.v1.error`. Os nomes de fila são versionados porque os argumentos de uma fila RabbitMQ são imutáveis depois da criação; uma alteração de topologia em produção deve criar uma nova versão e drenar a anterior. Nesta etapa, persistência no PostgreSQL e publicação no RabbitMQ ainda não formam uma única transação: se o banco confirmar e o broker falhar, o pedido fica persistido sem evento. Este trade-off é deliberado e será resolvido pelo **Outbox Pattern** no refinamento de confiabilidade.
 
 O realtime é intencionalmente orientado à demonstração com uma instância de API: o navegador sempre pode recuperar o estado pelo endpoint de histórico. Em uma implantação horizontal, cada instância precisaria da sua própria fila de fan-out ou de um backplane (por exemplo, Redis/SignalR); essa evolução deve ser feita junto com Outbox para garantir entrega consistente dos eventos.
+
+### Observabilidade
+
+A API e o Worker expõem health checks de readiness e liveness e incluem tracing OpenTelemetry para requests HTTP, chamadas HTTP de saída e publicação RabbitMQ. Para demonstrar os spans localmente sem acoplar o projeto a um fornecedor, habilite o exportador de console em cada processo:
+
+```powershell
+$env:Observability__ConsoleExporterEnabled = "true"
+```
+
+O trace registra o serviço, o tipo de operação de mensageria, `order.id` e `messaging.message.id`. Em um deploy, o exportador de console deve ser substituído por um collector OTLP, sem alterar as regras de negócio ou o contrato de mensagens.
 
 ## Endpoints disponíveis
 
@@ -135,3 +158,4 @@ Exemplo de criação:
 - **Proxy de mesma origem no Compose:** o Nginx do frontend encaminha o prefixo `/api` internamente para a API. Isso evita colisão com as rotas da SPA (inclusive em um refresh), não expõe credenciais de infraestrutura ao navegador e dispensa uma regra de CORS ampla para a demonstração local.
 - **Preferências de interface:** o frontend inicia em português (Brasil) e tema claro. Idioma e tema são persistidos no `localStorage`; valores continuam trafegando como número JSON em BRL e datas como ISO 8601, sendo formatados somente na apresentação conforme o idioma selecionado.
 - **Ordenação no cliente:** a API retorna a lista em ordem de criação, mas a interface permite reordenar a coleção já carregada sem novas chamadas. A regra é pura e testada, mantendo a visualização responsiva simples sem antecipar paginação ou ordenação server-side.
+- **Observabilidade por configuração:** OpenTelemetry instrumenta HTTP e operações de publicação RabbitMQ; o exportador de console só é ligado por configuração para manter o ambiente local demonstrável sem introduzir uma plataforma de telemetria prematuramente. Os relatórios de cobertura e o Quality Gate ficam no CI; o SonarQube Cloud é ativado apenas quando seus segredos forem configurados no GitHub.

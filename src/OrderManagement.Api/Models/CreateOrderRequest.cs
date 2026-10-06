@@ -12,6 +12,6 @@ public sealed class CreateOrderRequest
     [StringLength(200)]
     public string Produto { get; init; } = string.Empty;
 
-    [Range(typeof(decimal), "0.01", "79228162514264337593543950335", ErrorMessage = "O valor deve ser maior que zero.")]
+    [Range(typeof(decimal), "0.01", "79228162514264337593543950335", ParseLimitsInInvariantCulture = true, ErrorMessage = "O valor deve ser maior que zero.")]
     public decimal Valor { get; init; }
 }
