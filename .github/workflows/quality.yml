@@ -56,7 +56,7 @@ jobs:
   sonar:
     name: SonarQube Cloud
     needs: verify
-    if: ${{ vars.SONAR_PROJECT_KEY != '' && vars.SONAR_ORGANIZATION != '' && secrets.SONAR_TOKEN != '' }}
+    if: ${{ vars.SONAR_PROJECT_KEY != '' && vars.SONAR_ORGANIZATION != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out source with history
