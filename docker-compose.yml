@@ -55,6 +55,9 @@ services:
       RabbitMq__RetryRoutingKey: ${RABBITMQ_RETRY_ROUTING_KEY}
       RabbitMq__RetryDelayMilliseconds: ${RABBITMQ_RETRY_DELAY_MILLISECONDS}
       RabbitMq__MaxDeliveryAttempts: ${RABBITMQ_MAX_DELIVERY_ATTEMPTS}
+      RabbitMq__StatusExchange: ${RABBITMQ_STATUS_EXCHANGE}
+      RabbitMq__StatusQueue: ${RABBITMQ_STATUS_QUEUE}
+      RabbitMq__StatusRoutingKey: ${RABBITMQ_STATUS_ROUTING_KEY}
     ports:
       - "127.0.0.1:${API_PORT:-8080}:8080"
     depends_on:
@@ -92,6 +95,9 @@ services:
       RabbitMq__RetryRoutingKey: ${RABBITMQ_RETRY_ROUTING_KEY}
       RabbitMq__RetryDelayMilliseconds: ${RABBITMQ_RETRY_DELAY_MILLISECONDS}
       RabbitMq__MaxDeliveryAttempts: ${RABBITMQ_MAX_DELIVERY_ATTEMPTS}
+      RabbitMq__StatusExchange: ${RABBITMQ_STATUS_EXCHANGE}
+      RabbitMq__StatusQueue: ${RABBITMQ_STATUS_QUEUE}
+      RabbitMq__StatusRoutingKey: ${RABBITMQ_STATUS_ROUTING_KEY}
     depends_on:
       postgres:
         condition: service_healthy
