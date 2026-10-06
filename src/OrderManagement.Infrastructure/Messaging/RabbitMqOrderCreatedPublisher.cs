@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using OrderManagement.Infrastructure.Observability;
 using OrderManagement.Application.Messaging;
 using OrderManagement.Contracts.Messaging;
 using RabbitMQ.Client;
@@ -13,6 +14,7 @@ public sealed class RabbitMqOrderCreatedPublisher(IOptions<RabbitMqOptions> opti
 
     public async Task PublishAsync(OrderCreated message, CancellationToken cancellationToken)
     {
+        using var activity = MessagingActivity.Start("rabbitmq.publish order.created", message.OrderId, message.MessageId);
         var factory = RabbitMqConnectionFactory.Create(_options, "order-management-api");
 
         await using var connection = await factory.CreateConnectionAsync(cancellationToken);

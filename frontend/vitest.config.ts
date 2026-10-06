@@ -7,6 +7,10 @@ export default defineConfig({
     poolOptions: {
       forks: { singleFork: true }
     },
-    setupFiles: ['./src/test/setup.ts']
+    setupFiles: ['./src/test/setup.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov']
+    }
   }
 });
