@@ -4,7 +4,7 @@ Sistema de gestão de pedidos desenvolvido como desafio técnico, com .NET, Reac
 
 ## Estado atual
 
-O incremento `feature/frontend-orders` adiciona a interface React para listar, criar e acompanhar pedidos. A API publica `OrderCreated` após persistir um pedido e o Worker o processa de forma assíncrona, com retentativas e fila de erro.
+O incremento `feature/realtime-status` adiciona histórico imutável de status e atualização em tempo real. A API publica `OrderCreated` após persistir um pedido; o Worker o processa de forma assíncrona e emite `OrderStatusChanged`; a interface consome SSE, com polling como fallback.
 
 ## Executar a API
 
@@ -31,6 +31,9 @@ O incremento `feature/frontend-orders` adiciona a interface React para listar, c
    dotnet user-secrets set "RabbitMq:RetryExchange" "order.events.retry" --project src/OrderManagement.Api
    dotnet user-secrets set "RabbitMq:RetryQueue" "order.created.v1.retry" --project src/OrderManagement.Api
    dotnet user-secrets set "RabbitMq:RetryRoutingKey" "order.created.v1.retry" --project src/OrderManagement.Api
+   dotnet user-secrets set "RabbitMq:StatusExchange" "order.status.events" --project src/OrderManagement.Api
+   dotnet user-secrets set "RabbitMq:StatusQueue" "order.status.changed.v1" --project src/OrderManagement.Api
+   dotnet user-secrets set "RabbitMq:StatusRoutingKey" "order.status.changed.v1" --project src/OrderManagement.Api
    ```
 
 2. No Visual Studio, selecione o perfil **IIS Express** e execute. O navegador abrirá em `https://localhost:44395/swagger`.
@@ -62,7 +65,7 @@ O Compose aguarda PostgreSQL e RabbitMQ ficarem saudáveis antes de iniciar API 
 
 ### Testes
 
-Os testes de domínio protegem a criação e as transições obrigatórias de status. O teste de aplicação protege o limite transacional do caso de uso: o pedido é persistido antes de `OrderCreated` ser publicado.
+Os testes de domínio protegem a criação, a sequência obrigatória de status e o histórico imutável. O teste de aplicação protege o limite transacional do caso de uso: o pedido é persistido antes de `OrderCreated` ser publicado. No frontend, os testes cobrem formulário, formatação, ordenação, apresentação de status e o contrato SSE.
 
 ```powershell
 dotnet test src/OrderManagement.sln --no-restore
@@ -77,23 +80,29 @@ npm run test
 npm run build
 ```
 
-Para validar a integração manualmente, suba o Compose, abra o Swagger e crie um pedido. A API o persiste como `pendente` e publica um evento na exchange `order.events`, direcionado à fila `order.created.v1`. O Worker o move para `processando` e o finaliza cinco segundos depois.
+Para validar a integração manualmente, suba o Compose, abra o Swagger e crie um pedido. A API o persiste como `pendente` e publica um evento na exchange `order.events`, direcionado à fila `order.created.v1`. O Worker o move para `processando`, aguarda cinco segundos e o finaliza. Cada transição fica registrada em `order_status_history` e é publicada na exchange `order.status.events`.
 
-Pela interface, crie um pedido em `http://localhost:3000/orders`. A listagem e o detalhe fazem polling apenas enquanto o pedido estiver `pendente` ou `processando`; isso mantém a tela atualizada sem antecipar a implementação de SSE. A tabela inicia pelos pedidos mais recentes e permite ordenar as colunas; idioma e tema são preferências persistidas localmente.
+Pela interface, crie um pedido em `http://localhost:3000/orders` e abra seus detalhes. A tela recebe as transições por SSE e atualiza o status e o histórico sem recarregar. Se a conexão SSE ficar indisponível, listagem, detalhe e histórico fazem polling apenas enquanto o pedido estiver `pendente` ou `processando`. A tabela inicia pelos pedidos mais recentes e permite ordenar as colunas; idioma e tema são preferências persistidas localmente.
 
 ### Mensageria
 
 O contrato compartilhado `OrderCreated` contém `messageId`, `orderId`, `correlationId`, `eventType` e `occurredAt`. Para cada pedido criado, `correlationId` é igual a `orderId` e `eventType` é `OrderCreated`.
 
+Após cada mudança persistida pelo Worker, o contrato `OrderStatusChanged` é publicado com `messageId`, `orderId`, `correlationId`, `eventType`, `status` e `occurredAt`. O status usa o mesmo valor canônico da API (`pendente`, `processando` ou `finalizado`); `correlationId` continua igual a `orderId`. A API consome a fila `order.status.changed.v1` e retransmite os eventos em `GET /orders/events` usando Server-Sent Events (evento `order.status.changed`).
+
 A API declara explicitamente exchange direta, fila e binding, publica mensagens persistentes e aguarda a confirmação do broker antes de retornar sucesso. O Worker usa `ack` manual, prefetch de uma mensagem e as transições do agregado para tratar reentregas com idempotência: `Pendente` inicia o processamento, `Processando` conclui após cinco segundos e `Finalizado` é somente reconhecido.
 
 Falhas transitórias são republicadas na fila de retry, que possui TTL de cinco segundos e devolve a mensagem à fila principal. Após `RABBITMQ_MAX_DELIVERY_ATTEMPTS`, ou quando a mensagem é inválida, ela é encaminhada para a DLQ `order.created.v1.error`. Os nomes de fila são versionados porque os argumentos de uma fila RabbitMQ são imutáveis depois da criação; uma alteração de topologia em produção deve criar uma nova versão e drenar a anterior. Nesta etapa, persistência no PostgreSQL e publicação no RabbitMQ ainda não formam uma única transação: se o banco confirmar e o broker falhar, o pedido fica persistido sem evento. Este trade-off é deliberado e será resolvido pelo **Outbox Pattern** no refinamento de confiabilidade.
+
+O realtime é intencionalmente orientado à demonstração com uma instância de API: o navegador sempre pode recuperar o estado pelo endpoint de histórico. Em uma implantação horizontal, cada instância precisaria da sua própria fila de fan-out ou de um backplane (por exemplo, Redis/SignalR); essa evolução deve ser feita junto com Outbox para garantir entrega consistente dos eventos.
 
 ## Endpoints disponíveis
 
 - `POST /orders` cria um pedido em `pendente`.
 - `GET /orders` lista pedidos, do mais recente para o mais antigo.
 - `GET /orders/{id}` retorna um pedido ou `404`.
+- `GET /orders/{id}/history` retorna o histórico imutável de status ou `404`.
+- `GET /orders/events` abre o stream SSE de `OrderStatusChanged`.
 - `GET /health` verifica a API, o PostgreSQL e o RabbitMQ.
 - `GET /health/live` verifica que o processo está vivo, sem depender do banco.
 
@@ -120,6 +129,8 @@ Exemplo de criação:
 - **HTTPS por ambiente:** IIS Express mantém redirecionamento HTTPS. O Compose local o desabilita porque expõe apenas HTTP; no deploy, o proxy reverso será responsável por TLS e essa configuração continuará explícita.
 - **RabbitMQ isolado por configuração:** host, credenciais, exchange, fila e routing key são variáveis de ambiente. A UI de management existe somente no Compose local para demonstrar a topologia e os consumidores, sem virar uma dependência da aplicação.
 - **Worker independente:** o serviço executa em processo e imagem próprios, reutilizando somente contratos, aplicação e infraestrutura necessários. Ele expõe health checks internamente e consome a fila sem acoplar regras de negócio ao AMQP.
+- **Histórico como trilha de auditoria:** cada mudança válida do agregado grava um registro append-only com instante, origem e identificador da mensagem quando aplicável. Isso explica o estado atual ao usuário e oferece base para auditoria, sem tornar o histórico uma nova fonte de verdade.
+- **SSE antes de WebSocket:** o servidor só precisa notificar o navegador; SSE é unidirecional, nativo do browser e mais simples de operar. A API consome os eventos de status, atualiza os clientes conectados e o TanStack Query mantém o cache coerente. Polling condicional preserva a experiência quando a conexão não existe ou é interrompida.
 - **Frontend orientado à operação:** React, TypeScript estrito, MUI, React Router e TanStack Query mantêm a interface pequena e tipada. O TanStack Query concentra cache, mutações, polling e estados de requisição; um cliente `fetch` enxuto trata somente o transporte HTTP.
 - **Proxy de mesma origem no Compose:** o Nginx do frontend encaminha o prefixo `/api` internamente para a API. Isso evita colisão com as rotas da SPA (inclusive em um refresh), não expõe credenciais de infraestrutura ao navegador e dispensa uma regra de CORS ampla para a demonstração local.
 - **Preferências de interface:** o frontend inicia em português (Brasil) e tema claro. Idioma e tema são persistidos no `localStorage`; valores continuam trafegando como número JSON em BRL e datas como ISO 8601, sendo formatados somente na apresentação conforme o idioma selecionado.

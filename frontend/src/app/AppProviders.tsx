@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useMemo, useState, type PropsWithChildren } from 'react';
 import { ColorModeContext, type ColorModeContextValue } from './colorMode';
 import { createAppTheme, type ColorMode } from './theme';
+import { OrderStatusRealtimeProvider } from '../features/orders/realtime/OrderStatusRealtimeProvider';
 
 const colorModeStorageKey = 'order-management.color-mode';
 
@@ -37,12 +38,14 @@ export function AppProviders({ children }: PropsWithChildren) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ColorModeContext.Provider value={colorMode}>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          {children}
-        </ThemeProvider>
-      </ColorModeContext.Provider>
+      <OrderStatusRealtimeProvider>
+        <ColorModeContext.Provider value={colorMode}>
+          <ThemeProvider theme={theme}>
+            <CssBaseline />
+            {children}
+          </ThemeProvider>
+        </ColorModeContext.Provider>
+      </OrderStatusRealtimeProvider>
     </QueryClientProvider>
   );
 }

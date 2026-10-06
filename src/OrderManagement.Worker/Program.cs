@@ -9,6 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // The worker shares persistence configuration with the API but runs independently.
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHostedService<OrderProcessingWorker>();
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<OrdersDbContext>("postgresql", failureStatus: HealthStatus.Unhealthy);

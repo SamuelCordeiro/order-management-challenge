@@ -38,6 +38,16 @@ public sealed class OrderService(
         return orders.Select(ToResponse).ToArray();
     }
 
+    public async Task<IReadOnlyList<OrderStatusHistoryResponse>?> GetStatusHistoryAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var order = await repository.GetByIdAsync(id, cancellationToken);
+        if (order is null)
+            return null;
+
+        var history = await repository.GetStatusHistoryAsync(id, cancellationToken);
+        return history.Select(item => new OrderStatusHistoryResponse(item.Status, item.OccurredAt, item.Source)).ToArray();
+    }
+
     private static OrderResponse ToResponse(Order order) => new(
         order.Id, order.Customer, order.Product, order.Amount, order.Status, order.CreatedAt);
 }

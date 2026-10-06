@@ -6,6 +6,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using OrderManagement.Application.Orders;
 using OrderManagement.Infrastructure;
 using OrderManagement.Infrastructure.Persistence;
+using OrderManagement.Api.Realtime;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +24,8 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddScoped<OrderService>();
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<OrderStatusEventHub>();
+builder.Services.AddHostedService<OrderStatusEventConsumer>();
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<OrdersDbContext>("postgresql", failureStatus: HealthStatus.Unhealthy);
 

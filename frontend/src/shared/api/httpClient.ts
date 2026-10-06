@@ -3,6 +3,10 @@ import i18n from '../../app/i18n';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
+export function getApiUrl(path: string): string {
+  return `${apiBaseUrl}${path}`;
+}
+
 export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   return requestJson<T>(path, { signal });
 }
@@ -21,7 +25,7 @@ export async function postJson<TResponse, TRequest>(
 }
 
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(getApiUrl(path), {
     ...init,
     headers: {
       Accept: 'application/json',

@@ -17,6 +17,9 @@ public sealed class RabbitMqOptions
     public string RetryExchange { get; set; } = string.Empty;
     public string RetryQueue { get; set; } = string.Empty;
     public string RetryRoutingKey { get; set; } = string.Empty;
+    public string StatusExchange { get; set; } = string.Empty;
+    public string StatusQueue { get; set; } = string.Empty;
+    public string StatusRoutingKey { get; set; } = string.Empty;
     public int RetryDelayMilliseconds { get; set; } = 5000;
     public int MaxDeliveryAttempts { get; set; } = 3;
 }

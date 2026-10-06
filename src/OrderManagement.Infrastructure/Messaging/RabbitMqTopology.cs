@@ -9,6 +9,7 @@ public static class RabbitMqTopology
         await DeclareExchangeAsync(channel, options.Exchange, cancellationToken);
         await DeclareExchangeAsync(channel, options.ErrorExchange, cancellationToken);
         await DeclareExchangeAsync(channel, options.RetryExchange, cancellationToken);
+        await DeclareExchangeAsync(channel, options.StatusExchange, cancellationToken);
 
         var mainQueueArguments = new Dictionary<string, object?>
         {
@@ -26,10 +27,12 @@ public static class RabbitMqTopology
         await DeclareQueueAsync(channel, options.Queue, mainQueueArguments, cancellationToken);
         await DeclareQueueAsync(channel, options.ErrorQueue, null, cancellationToken);
         await DeclareQueueAsync(channel, options.RetryQueue, retryQueueArguments, cancellationToken);
+        await DeclareQueueAsync(channel, options.StatusQueue, null, cancellationToken);
 
         await BindQueueAsync(channel, options.Queue, options.Exchange, options.RoutingKey, cancellationToken);
         await BindQueueAsync(channel, options.ErrorQueue, options.ErrorExchange, options.ErrorRoutingKey, cancellationToken);
         await BindQueueAsync(channel, options.RetryQueue, options.RetryExchange, options.RetryRoutingKey, cancellationToken);
+        await BindQueueAsync(channel, options.StatusQueue, options.StatusExchange, options.StatusRoutingKey, cancellationToken);
     }
 
     private static Task DeclareExchangeAsync(IChannel channel, string exchange, CancellationToken cancellationToken) =>

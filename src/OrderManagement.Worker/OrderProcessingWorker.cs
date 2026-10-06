@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using OrderManagement.Application.Orders;
+using OrderManagement.Application.Messaging;
 using OrderManagement.Contracts.Messaging;
 using OrderManagement.Domain.Orders;
 using OrderManagement.Infrastructure.Messaging;
@@ -12,6 +13,7 @@ namespace OrderManagement.Worker;
 public sealed class OrderProcessingWorker(
     IServiceScopeFactory scopeFactory,
     IOptions<RabbitMqOptions> options,
+    TimeProvider timeProvider,
     ILogger<OrderProcessingWorker> logger) : BackgroundService
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
@@ -101,7 +103,8 @@ public sealed class OrderProcessingWorker(
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var repository = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
-        var order = await repository.GetByIdAsync(message.OrderId, cancellationToken)
+        var statusPublisher = scope.ServiceProvider.GetRequiredService<IOrderStatusChangedPublisher>();
+        var order = await repository.GetByIdWithHistoryAsync(message.OrderId, cancellationToken)
             ?? throw new InvalidOperationException($"Order {message.OrderId} was not found.");
 
         if (order.Status == OrderStatus.Finalizado)
@@ -109,18 +112,38 @@ public sealed class OrderProcessingWorker(
 
         if (order.Status == OrderStatus.Pendente)
         {
-            order.StartProcessing();
+            var occurredAt = timeProvider.GetUtcNow();
+            order.StartProcessing(occurredAt, message.MessageId);
             await repository.SaveChangesAsync(cancellationToken);
+            await PublishStatusChangedAsync(statusPublisher, order, message, occurredAt, cancellationToken);
         }
 
         await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
 
         if (order.Status == OrderStatus.Processando)
         {
-            order.Complete();
+            var occurredAt = timeProvider.GetUtcNow();
+            order.Complete(occurredAt, message.MessageId);
             await repository.SaveChangesAsync(cancellationToken);
+            await PublishStatusChangedAsync(statusPublisher, order, message, occurredAt, cancellationToken);
         }
     }
+
+    private static Task PublishStatusChangedAsync(
+        IOrderStatusChangedPublisher publisher,
+        Order order,
+        OrderCreated sourceMessage,
+        DateTimeOffset occurredAt,
+        CancellationToken cancellationToken) =>
+        publisher.PublishAsync(
+            new OrderStatusChanged(
+                MessageId: Guid.NewGuid(),
+                OrderId: order.Id,
+                CorrelationId: sourceMessage.CorrelationId,
+                EventType: OrderStatusChanged.EventTypeName,
+                Status: order.Status.ToString().ToLowerInvariant(),
+                OccurredAt: occurredAt),
+            cancellationToken);
 
     private async Task RetryOrDeadLetterAsync(
         IChannel channel,

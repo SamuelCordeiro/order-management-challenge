@@ -37,6 +37,9 @@ public static class DependencyInjection
                 options.RetryExchange = configuration["RabbitMq:RetryExchange"] ?? string.Empty;
                 options.RetryQueue = configuration["RabbitMq:RetryQueue"] ?? string.Empty;
                 options.RetryRoutingKey = configuration["RabbitMq:RetryRoutingKey"] ?? string.Empty;
+                options.StatusExchange = configuration["RabbitMq:StatusExchange"] ?? string.Empty;
+                options.StatusQueue = configuration["RabbitMq:StatusQueue"] ?? string.Empty;
+                options.StatusRoutingKey = configuration["RabbitMq:StatusRoutingKey"] ?? string.Empty;
                 options.RetryDelayMilliseconds = int.TryParse(configuration["RabbitMq:RetryDelayMilliseconds"], out var retryDelay) ? retryDelay : 5000;
                 options.MaxDeliveryAttempts = int.TryParse(configuration["RabbitMq:MaxDeliveryAttempts"], out var maxAttempts) ? maxAttempts : 3;
             })
@@ -53,11 +56,15 @@ public static class DependencyInjection
                 !string.IsNullOrWhiteSpace(options.RetryExchange) &&
                 !string.IsNullOrWhiteSpace(options.RetryQueue) &&
                 !string.IsNullOrWhiteSpace(options.RetryRoutingKey) &&
+                !string.IsNullOrWhiteSpace(options.StatusExchange) &&
+                !string.IsNullOrWhiteSpace(options.StatusQueue) &&
+                !string.IsNullOrWhiteSpace(options.StatusRoutingKey) &&
                 options.RetryDelayMilliseconds > 0 &&
                 options.MaxDeliveryAttempts > 0,
                 "RabbitMq configuration is incomplete.")
             .ValidateOnStart();
         services.AddScoped<IOrderCreatedPublisher, RabbitMqOrderCreatedPublisher>();
+        services.AddScoped<IOrderStatusChangedPublisher, RabbitMqOrderStatusChangedPublisher>();
         return services;
     }
 }

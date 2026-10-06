@@ -11,3 +11,8 @@ public sealed record OrderResponse(
     decimal Valor,
     OrderStatus Status,
     DateTimeOffset DataCriacao);
+
+public sealed record OrderStatusHistoryResponse(
+    OrderStatus Status,
+    DateTimeOffset OcorridoEm,
+    string Origem);
