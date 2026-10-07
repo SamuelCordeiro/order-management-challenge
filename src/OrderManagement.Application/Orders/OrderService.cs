@@ -33,10 +33,15 @@ public sealed class OrderService(
         return order is null ? null : ToResponse(order);
     }
 
-    public async Task<IReadOnlyList<OrderResponse>> GetAllAsync(CancellationToken cancellationToken)
+    public async Task<PagedOrdersResponse> GetPageAsync(OrderPageQuery query, CancellationToken cancellationToken)
     {
-        var orders = await repository.GetAllAsync(cancellationToken);
-        return orders.Select(ToResponse).ToArray();
+        var result = await repository.GetPageAsync(query, cancellationToken);
+        return new PagedOrdersResponse(
+            result.Items.Select(ToResponse).ToArray(),
+            query.Page,
+            query.PageSize,
+            result.TotalCount,
+            new OrderSummaryResponse(result.TotalCount, result.PendingCount, result.ProcessingCount, result.FinalizedCount));
     }
 
     public async Task<IReadOnlyList<OrderStatusHistoryResponse>?> GetStatusHistoryAsync(Guid id, CancellationToken cancellationToken)

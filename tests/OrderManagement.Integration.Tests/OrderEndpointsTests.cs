@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json.Serialization;
 using OrderManagement.Contracts.Messaging;
 using RabbitMQ.Client;
 
@@ -7,6 +8,33 @@ namespace OrderManagement.Integration.Tests;
 
 public sealed class OrderEndpointsTests(OrderApiFixture fixture) : IClassFixture<OrderApiFixture>
 {
+    [Fact]
+    public async Task GetOrders_ReturnsServerPaginatedResultWithMinimumPageSizeOfFive()
+    {
+        using var api = fixture.CreateApi();
+        using var client = api.CreateClient();
+        var initialPage = await client.GetFromJsonAsync<PagedOrdersResponse>("/orders?pageSize=100");
+        Assert.NotNull(initialPage);
+
+        for (var index = 0; index < 11; index++)
+        {
+            var created = await client.PostAsJsonAsync("/orders", new CreateOrderRequest($"Cliente {index}", "Produto", index + 1));
+            created.EnsureSuccessStatusCode();
+        }
+
+        var response = await client.GetAsync("/orders?page=1&pageSize=5&sortBy=data_criacao&sortDirection=desc");
+
+        response.EnsureSuccessStatusCode();
+        var page = await response.Content.ReadFromJsonAsync<PagedOrdersResponse>();
+        Assert.NotNull(page);
+        Assert.Equal(5, page.Items.Length);
+        Assert.Equal(initialPage.TotalCount + 11, page.TotalCount);
+        Assert.Equal(page.TotalCount, page.Summary.Total);
+
+        var invalidPageSize = await client.GetAsync("/orders?pageSize=4");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidPageSize.StatusCode);
+    }
+
     [Fact]
     public async Task CreateOrder_PersistsPendingOrderAndItsInitialHistory()
     {
@@ -73,4 +101,11 @@ public sealed class OrderEndpointsTests(OrderApiFixture fixture) : IClassFixture
     private sealed record OrderResponse(Guid Id, string Status);
 
     private sealed record OrderStatusHistoryResponse(string Status, string Origem);
+
+    private sealed record PagedOrdersResponse(
+        OrderResponse[] Items,
+        [property: JsonPropertyName("total_count")] int TotalCount,
+        SummaryResponse Summary);
+
+    private sealed record SummaryResponse(int Total, int Pendentes);
 }

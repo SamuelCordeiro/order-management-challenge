@@ -29,9 +29,31 @@ public sealed class OrdersController(OrderService orderService, OrderStatusEvent
     }
 
     [HttpGet]
-    [ProducesResponseType<IReadOnlyList<OrderResponse>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<OrderResponse>>> GetAll(CancellationToken cancellationToken) =>
-        Ok(await orderService.GetAllAsync(cancellationToken));
+    [ProducesResponseType<PagedOrdersResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PagedOrdersResponse>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 5,
+        [FromQuery] string sortBy = "data_criacao",
+        [FromQuery] string sortDirection = "desc",
+        CancellationToken cancellationToken = default)
+    {
+        if (page < 1 || pageSize is < 5 or > 100)
+            return BadRequest(new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                [nameof(page)] = ["Page must be greater than zero."],
+                [nameof(pageSize)] = ["PageSize must be between 5 and 100."]
+            }));
+
+        if (!TryParseSort(sortBy, sortDirection, out var sortField, out var direction))
+            return BadRequest(new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                [nameof(sortBy)] = ["SortBy must be cliente, produto, valor, status or data_criacao."],
+                [nameof(sortDirection)] = ["SortDirection must be asc or desc."]
+            }));
+
+        return Ok(await orderService.GetPageAsync(new OrderPageQuery(page, pageSize, sortField, direction), cancellationToken));
+    }
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType<OrderResponse>(StatusCodes.Status200OK)]
@@ -68,5 +90,28 @@ public sealed class OrdersController(OrderService orderService, OrderStatusEvent
             await Response.WriteAsync($"data: {JsonSerializer.Serialize(statusChanged, SseSerializerOptions)}\n\n", cancellationToken);
             await Response.Body.FlushAsync(cancellationToken);
         }
+    }
+
+    private static bool TryParseSort(string sortBy, string sortDirection, out OrderSortField sortField, out SortDirection direction)
+    {
+        sortField = sortBy switch
+        {
+            "cliente" => OrderSortField.Customer,
+            "produto" => OrderSortField.Product,
+            "valor" => OrderSortField.Amount,
+            "status" => OrderSortField.Status,
+            "data_criacao" => OrderSortField.CreatedAt,
+            _ => default
+        };
+
+        direction = sortDirection switch
+        {
+            "asc" => SortDirection.Asc,
+            "desc" => SortDirection.Desc,
+            _ => default
+        };
+
+        return new[] { "cliente", "produto", "valor", "status", "data_criacao" }.Contains(sortBy)
+            && (sortDirection is "asc" or "desc");
     }
 }
