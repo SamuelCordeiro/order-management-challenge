@@ -18,9 +18,7 @@ export function OrderStatusRealtimeProvider({ children }: PropsWithChildren) {
       const statusChanged = parseOrderStatusChangedEvent(event);
       if (!statusChanged) return;
 
-      queryClient.setQueryData<Order[]>(['orders'], (orders) =>
-        orders?.map((order) => updateOrderStatus(order, statusChanged))
-      );
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.setQueryData<Order>(['orders', statusChanged.order_id], (order) =>
         order ? updateOrderStatus(order, statusChanged) : order
       );

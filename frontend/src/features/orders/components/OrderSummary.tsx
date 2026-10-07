@@ -1,6 +1,6 @@
 import { Card, CardContent, Grid, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import type { Order } from '../api/ordersApi';
+import type { OrderSummary as OrderSummaryData } from '../api/ordersApi';
 
 const summaryItems = [
   { key: 'total', status: undefined },
@@ -9,12 +9,12 @@ const summaryItems = [
   { key: 'completed', status: 'finalizado' }
 ] as const;
 
-export function OrderSummary({ orders }: { orders: Order[] }) {
+export function OrderSummary({ summary }: { summary: OrderSummaryData }) {
   const { t } = useTranslation();
   return (
     <Grid container spacing={2}>
       {summaryItems.map((item) => {
-        const value = item.status ? orders.filter((order) => order.status === item.status).length : orders.length;
+        const value = item.status === 'pendente' ? summary.pendentes : item.status === 'processando' ? summary.processando : item.status === 'finalizado' ? summary.finalizados : summary.total;
 
         return (
           <Grid key={item.key} size={{ xs: 6, md: 3 }}>

@@ -1,15 +1,30 @@
 import { Add, Refresh } from '@mui/icons-material';
 import { Alert, Box, Button, Container, Skeleton, Stack, Typography } from '@mui/material';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AppSettings } from '../../../app/AppSettings';
 import { OrderList } from '../components/OrderList';
 import { OrderSummary } from '../components/OrderSummary';
 import { useOrders } from '../hooks/useOrders';
+import type { OrderSortKey, SortDirection } from '../api/ordersApi';
+
+const sortKeys: OrderSortKey[] = ['cliente', 'produto', 'valor', 'status', 'data_criacao'];
+const pageSizes = [5, 10, 25, 50];
 
 export function OrdersPage() {
   const { t } = useTranslation();
-  const { data: orders = [], isError, isFetching, isPending, refetch } = useOrders();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = Math.max(1, Number(searchParams.get('page')) || 1);
+  const pageSize = pageSizes.includes(Number(searchParams.get('pageSize'))) ? Number(searchParams.get('pageSize')) : 5;
+  const sortBy = sortKeys.includes(searchParams.get('sortBy') as OrderSortKey) ? searchParams.get('sortBy') as OrderSortKey : 'data_criacao';
+  const sortDirection: SortDirection = searchParams.get('sortDirection') === 'asc' ? 'asc' : 'desc';
+  const { data, isError, isFetching, isPending, refetch } = useOrders({ page, pageSize, sortBy, sortDirection });
+
+  function updateQuery(next: Partial<{ page: number; pageSize: number; sortBy: OrderSortKey; sortDirection: SortDirection }>) {
+    const query = new URLSearchParams(searchParams);
+    Object.entries(next).forEach(([key, value]) => query.set(key, String(value)));
+    setSearchParams(query);
+  }
 
   return (
     <Box component="main" minHeight="100vh" py={{ xs: 4, md: 6 }}>
@@ -25,7 +40,7 @@ export function OrdersPage() {
           </Stack>
         </Stack>
 
-        <Box mt={4}>{isPending ? <SummarySkeleton /> : <OrderSummary orders={orders} />}</Box>
+        <Box mt={4}>{isPending ? <SummarySkeleton /> : data && <OrderSummary summary={data.summary} />}</Box>
 
         <Stack alignItems="center" direction="row" justifyContent="space-between" mt={5} spacing={2}>
           <Typography component="h2" variant="h5">{t('orders.recent')}</Typography>
@@ -39,10 +54,10 @@ export function OrdersPage() {
             </Alert>
           )}
           {isPending && <ListSkeleton />}
-          {!isPending && !isError && orders.length === 0 && (
+          {!isPending && !isError && data?.total_count === 0 && (
             <Alert severity="info">{t('orders.empty')}</Alert>
           )}
-          {!isPending && !isError && orders.length > 0 && <OrderList orders={orders} />}
+          {!isPending && !isError && data && data.total_count > 0 && <OrderList data={data} sortBy={sortBy} sortDirection={sortDirection} onPageChange={(nextPage) => updateQuery({ page: nextPage })} onPageSizeChange={(nextPageSize) => updateQuery({ page: 1, pageSize: nextPageSize })} onSortChange={(nextSortBy, nextSortDirection) => updateQuery({ page: 1, sortBy: nextSortBy, sortDirection: nextSortDirection })} />}
         </Box>
       </Container>
     </Box>

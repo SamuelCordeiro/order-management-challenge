@@ -34,6 +34,7 @@ const resources = {
         ascending: 'Ordem crescente',
         descending: 'Ordem decrescente',
         summary: { total: 'Total', pending: 'Pendentes', processing: 'Processando', completed: 'Finalizados' },
+        pagination: { rowsPerPage: 'Itens por página:', displayedRows: '{{from}}–{{to}} de {{count}}' },
         statuses: { pendente: 'Pendente', processando: 'Processando', finalizado: 'Finalizado' }
       },
       createOrder: {
@@ -99,6 +100,7 @@ const resources = {
         ascending: 'Ascending order',
         descending: 'Descending order',
         summary: { total: 'Total', pending: 'Pending', processing: 'Processing', completed: 'Completed' },
+        pagination: { rowsPerPage: 'Rows per page:', displayedRows: '{{from}}–{{to}} of {{count}}' },
         statuses: { pendente: 'Pending', processando: 'Processing', finalizado: 'Completed' }
       },
       createOrder: {
