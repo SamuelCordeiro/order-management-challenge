@@ -14,7 +14,7 @@ Esta matriz é uma referência curta para revisões futuras. Ela foi sintetizada
 | Worker | Processar, aguardar cinco segundos e finalizar | `OrderProcessingWorker` |
 | Confiabilidade | Consumo idempotente | Transições do agregado e histórico imutável |
 | Saúde | API, PostgreSQL e RabbitMQ | `/health`, `/health/live` e health checks do Compose |
-| Frontend | Tabela, criação, detalhe e feedback de status | Feature `orders` em React |
+| Frontend | Tabela paginada, criação, detalhe e feedback de status | Feature `orders` em React |
 | Infraestrutura | API, Worker, frontend, banco e administração do banco com Compose | `docker-compose.yml` e pgAdmin |
 | Configuração | Segredos fora do código e migrations automáticas | `.env.example`, User Secrets e aplicação de migrations no startup |
 
