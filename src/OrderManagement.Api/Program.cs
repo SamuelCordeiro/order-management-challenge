@@ -78,6 +78,6 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => fa
 
 #endregion
 
-app.Run();
+await app.RunAsync();
 
-public partial class Program;
+public partial class Program { }

@@ -27,7 +27,7 @@ const apiFieldErrorKeys: Record<FieldName, string> = {
   valor: 'createOrder.errors.amountInvalid'
 };
 
-export function OrderForm({ isSubmitting, onSubmit }: OrderFormProps) {
+export function OrderForm({ isSubmitting, onSubmit }: Readonly<OrderFormProps>) {
   const { i18n, t } = useTranslation();
   const [values, setValues] = useState<FormValues>({
     cliente: '',

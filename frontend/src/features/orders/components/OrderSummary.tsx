@@ -3,18 +3,18 @@ import { useTranslation } from 'react-i18next';
 import type { OrderSummary as OrderSummaryData } from '../api/ordersApi';
 
 const summaryItems = [
-  { key: 'total', status: undefined },
-  { key: 'pending', status: 'pendente' },
-  { key: 'processing', status: 'processando' },
-  { key: 'completed', status: 'finalizado' }
+  { key: 'total', valueKey: 'total' },
+  { key: 'pending', valueKey: 'pendentes' },
+  { key: 'processing', valueKey: 'processando' },
+  { key: 'completed', valueKey: 'finalizados' }
 ] as const;
 
-export function OrderSummary({ summary }: { summary: OrderSummaryData }) {
+export function OrderSummary({ summary }: Readonly<{ summary: OrderSummaryData }>) {
   const { t } = useTranslation();
   return (
     <Grid container spacing={2}>
       {summaryItems.map((item) => {
-        const value = item.status === 'pendente' ? summary.pendentes : item.status === 'processando' ? summary.processando : item.status === 'finalizado' ? summary.finalizados : summary.total;
+        const value = summary[item.valueKey];
 
         return (
           <Grid key={item.key} size={{ xs: 6, md: 3 }}>

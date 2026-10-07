@@ -11,7 +11,7 @@ interface OrderStatusHistoryProps {
   isPending: boolean;
 }
 
-export function OrderStatusHistory({ history, isError, isPending }: OrderStatusHistoryProps) {
+export function OrderStatusHistory({ history, isError, isPending }: Readonly<OrderStatusHistoryProps>) {
   const { i18n, t } = useTranslation();
 
   return (
@@ -24,21 +24,18 @@ export function OrderStatusHistory({ history, isError, isPending }: OrderStatusH
       {isError && <Alert severity="warning" sx={{ m: 3 }}>{t('orderHistory.error')}</Alert>}
       {!isPending && !isError && (
         <List aria-label={t('orderHistory.listAriaLabel')} sx={{ px: 3, pb: 2 }}>
-          {history?.map((item) => <HistoryItem item={item} key={`${item.status}-${item.ocorrido_em}`} />)}
+          {history?.map((item) => <HistoryItem item={item} key={`${item.status}-${item.ocorrido_em}`} language={i18n.language} />)}
         </List>
       )}
     </Paper>
   );
+}
 
-  function HistoryItem({ item }: { item: OrderStatusHistoryItem }) {
-    return (
-      <ListItem alignItems="flex-start" disableGutters>
-        <ListItemIcon sx={{ minWidth: 32, mt: 0.75 }}><Circle color="primary" fontSize="small" /></ListItemIcon>
-        <ListItemText
-          primary={<OrderStatusChip status={item.status} />}
-          secondary={t('orderHistory.entry', { date: formatDate(item.ocorrido_em, i18n.language), source: t(`orderHistory.sources.${item.origem}`) })}
-        />
-      </ListItem>
-    );
-  }
+function HistoryItem({ item, language }: Readonly<{ item: OrderStatusHistoryItem; language: string }>) {
+  const { t } = useTranslation();
+
+  return <ListItem alignItems="flex-start" disableGutters>
+    <ListItemIcon sx={{ minWidth: 32, mt: 0.75 }}><Circle color="primary" fontSize="small" /></ListItemIcon>
+    <ListItemText primary={<OrderStatusChip status={item.status} />} secondary={t('orderHistory.entry', { date: formatDate(item.ocorrido_em, language), source: t(`orderHistory.sources.${item.origem}`) })} />
+  </ListItem>;
 }

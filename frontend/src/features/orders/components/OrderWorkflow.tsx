@@ -6,7 +6,7 @@ const steps: OrderStatus[] = ['pendente', 'processando', 'finalizado'];
 
 export function OrderWorkflow({ status }: { status: OrderStatus }) {
   const { t } = useTranslation();
-  const activeStep = steps.findIndex((step) => step === status);
+  const activeStep = steps.indexOf(status);
 
   return (
     <Stepper activeStep={activeStep} alternativeLabel>

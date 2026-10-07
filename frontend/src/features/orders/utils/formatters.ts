@@ -7,11 +7,13 @@ export function formatDate(value: string, locale: string): string {
 }
 
 export function parseCurrencyInput(value: string, locale: string): number {
-  const normalizedValue = locale === 'pt-BR'
-    ? value.includes(',') && value.includes('.')
-      ? value.replaceAll('.', '').replace(',', '.')
-      : value.replace(',', '.')
-    : value.replaceAll(',', '');
+  if (locale !== 'pt-BR') {
+    return Number(value.replaceAll(',', ''));
+  }
+
+  const normalizedValue = value.includes(',') && value.includes('.')
+    ? value.replaceAll('.', '').replace(',', '.')
+    : value.replace(',', '.');
 
   return Number(normalizedValue);
 }
