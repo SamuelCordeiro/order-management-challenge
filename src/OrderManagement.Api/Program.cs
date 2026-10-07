@@ -7,6 +7,7 @@ using OrderManagement.Application.Orders;
 using OrderManagement.Infrastructure;
 using OrderManagement.Infrastructure.Observability;
 using OrderManagement.Infrastructure.Persistence;
+using OrderManagement.Infrastructure.Messaging;
 using OrderManagement.Api.Realtime;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,6 +29,7 @@ builder.Services.AddScoped<OrderService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<OrderStatusEventHub>();
 builder.Services.AddHostedService<OrderStatusEventConsumer>();
+builder.Services.AddHostedService<OutboxPublisherWorker>();
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<OrdersDbContext>("postgresql", failureStatus: HealthStatus.Unhealthy);
 

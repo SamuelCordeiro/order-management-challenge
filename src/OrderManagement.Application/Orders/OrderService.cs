@@ -6,14 +6,13 @@ namespace OrderManagement.Application.Orders;
 
 public sealed class OrderService(
     IOrderRepository repository,
-    IOrderCreatedPublisher publisher,
+    IOrderEventOutbox outbox,
     TimeProvider timeProvider)
 {
     public async Task<OrderResponse> CreateAsync(CreateOrderCommand command, CancellationToken cancellationToken)
     {
         var order = new Order(Guid.NewGuid(), command.Cliente, command.Produto, command.Valor, timeProvider.GetUtcNow());
         await repository.AddAsync(order, cancellationToken);
-        await repository.SaveChangesAsync(cancellationToken);
 
         var orderCreated = new OrderCreated(
             MessageId: Guid.NewGuid(),
@@ -22,7 +21,9 @@ public sealed class OrderService(
             EventType: OrderCreated.EventTypeName,
             OccurredAt: timeProvider.GetUtcNow());
 
-        await publisher.PublishAsync(orderCreated, cancellationToken);
+        // EF tracks both aggregates in one DbContext, so the order and its event are committed atomically.
+        await outbox.EnqueueAsync(orderCreated, cancellationToken);
+        await repository.SaveChangesAsync(cancellationToken);
         return ToResponse(order);
     }
 

@@ -7,6 +7,7 @@ public sealed class OrdersDbContext(DbContextOptions<OrdersDbContext> options) :
 {
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderStatusHistory> OrderStatusHistories => Set<OrderStatusHistory>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -32,5 +33,18 @@ public sealed class OrdersDbContext(DbContextOptions<OrdersDbContext> options) :
         history.Property(x => x.MessageId).HasColumnName("message_id");
         history.HasIndex(x => new { x.OrderId, x.OccurredAt });
         history.HasOne<Order>().WithMany(x => x.StatusHistory).HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Cascade);
+
+        var outbox = modelBuilder.Entity<OutboxMessage>();
+        outbox.ToTable("outbox_messages");
+        outbox.HasKey(x => x.Id);
+        outbox.Property(x => x.Id).HasColumnName("id");
+        outbox.Property(x => x.Type).HasColumnName("type").HasMaxLength(100).IsRequired();
+        outbox.Property(x => x.Payload).HasColumnName("payload").HasColumnType("jsonb").IsRequired();
+        outbox.Property(x => x.OccurredAt).HasColumnName("occurred_at").IsRequired();
+        outbox.Property(x => x.NextAttemptAt).HasColumnName("next_attempt_at").IsRequired();
+        outbox.Property(x => x.PublishedAt).HasColumnName("published_at");
+        outbox.Property(x => x.AttemptCount).HasColumnName("attempt_count").IsRequired();
+        outbox.Property(x => x.LastError).HasColumnName("last_error").HasMaxLength(2000);
+        outbox.HasIndex(x => new { x.PublishedAt, x.NextAttemptAt, x.OccurredAt });
     }
 }
