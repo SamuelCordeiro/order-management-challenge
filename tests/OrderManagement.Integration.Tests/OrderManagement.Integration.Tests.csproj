@@ -24,6 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\OrderManagement.Api\OrderManagement.Api.csproj" />
     <ProjectReference Include="..\..\src\OrderManagement.Contracts\OrderManagement.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\OrderManagement.Infrastructure\OrderManagement.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

@@ -8,24 +8,23 @@ namespace OrderManagement.Application.Tests;
 public sealed class OrderServiceTests
 {
     [Fact]
-    public async Task CreateAsync_PersistsOrderBeforePublishingOrderCreated()
+    public async Task CreateAsync_PersistsOrderAndOrderCreatedInTheOutbox()
     {
         var repository = new RecordingOrderRepository();
-        var publisher = new RecordingPublisher(() => repository.SaveChangesCalls);
+        var outbox = new RecordingOutbox();
         var now = new DateTimeOffset(2026, 10, 5, 20, 0, 0, TimeSpan.Zero);
-        var service = new OrderService(repository, publisher, new FixedTimeProvider(now));
+        var service = new OrderService(repository, outbox, new FixedTimeProvider(now));
 
         var order = await service.CreateAsync(new CreateOrderCommand("Ana", "Notebook", 4999.90m), CancellationToken.None);
 
         Assert.Equal(OrderStatus.Pendente, order.Status);
         Assert.Equal(now, order.DataCriacao);
         Assert.Equal(1, repository.SaveChangesCalls);
-        Assert.True(publisher.WasPublishedAfterPersistence);
-        Assert.NotNull(publisher.Message);
-        Assert.Equal(order.Id, publisher.Message!.OrderId);
-        Assert.Equal(order.Id, publisher.Message.CorrelationId);
-        Assert.Equal(OrderCreated.EventTypeName, publisher.Message.EventType);
-        Assert.Equal(now, publisher.Message.OccurredAt);
+        Assert.NotNull(outbox.Message);
+        Assert.Equal(order.Id, outbox.Message!.OrderId);
+        Assert.Equal(order.Id, outbox.Message.CorrelationId);
+        Assert.Equal(OrderCreated.EventTypeName, outbox.Message.EventType);
+        Assert.Equal(now, outbox.Message.OccurredAt);
     }
 
     private sealed class RecordingOrderRepository : IOrderRepository
@@ -59,17 +58,17 @@ public sealed class OrderServiceTests
         }
     }
 
-    private sealed class RecordingPublisher(Func<int> getSaveChangesCalls) : IOrderCreatedPublisher
+    private sealed class RecordingOutbox : IOrderEventOutbox
     {
         public OrderCreated? Message { get; private set; }
-        public bool WasPublishedAfterPersistence { get; private set; }
 
-        public Task PublishAsync(OrderCreated message, CancellationToken cancellationToken)
+        public Task EnqueueAsync(OrderCreated message, CancellationToken cancellationToken)
         {
             Message = message;
-            WasPublishedAfterPersistence = getSaveChangesCalls() > 0;
             return Task.CompletedTask;
         }
+
+        public Task EnqueueAsync(OrderStatusChanged message, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider

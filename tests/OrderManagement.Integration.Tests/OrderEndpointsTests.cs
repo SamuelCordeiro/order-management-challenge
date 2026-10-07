@@ -50,7 +50,15 @@ public sealed class OrderEndpointsTests(OrderApiFixture fixture) : IClassFixture
         await using var connection = await factory.CreateConnectionAsync();
         await using var channel = await connection.CreateChannelAsync();
 
-        var delivery = await channel.BasicGetAsync("order.created.v1", autoAck: true);
+        BasicGetResult? delivery = null;
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        while (delivery is null && DateTimeOffset.UtcNow < deadline)
+        {
+            delivery = await channel.BasicGetAsync("order.created.v1", autoAck: true);
+            if (delivery is null)
+                await Task.Delay(TimeSpan.FromMilliseconds(100));
+        }
+
         Assert.NotNull(delivery);
 
         var message = System.Text.Json.JsonSerializer.Deserialize<OrderCreated>(delivery.Body.Span, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
