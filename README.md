@@ -1,65 +1,44 @@
 # Order Management Challenge
 
-Sistema de gestão de pedidos desenvolvido como desafio técnico, com .NET, React, PostgreSQL, RabbitMQ e Docker.
+Sistema de gestão de pedidos construído para o desafio técnico, com API .NET 9, React, PostgreSQL, RabbitMQ e Docker Compose.
 
-## Estado atual
+## Executar
 
-O incremento `feature/backend-orders` implementa o núcleo HTTP, persistência e execução local com Docker Compose. Mensageria, worker e frontend permanecem nos próximos incrementos para manter cada mudança pequena e demonstrável.
+**Pré-requisito:** Docker Desktop em execução.
 
-## Executar a API
-
-### IIS Express ou dotnet run
-
-1. Configure uma conexão PostgreSQL local com User Secrets. Os valores ficam fora do repositório:
-
-   ```powershell
-   dotnet user-secrets set "ConnectionStrings:OrdersDatabase" "Host=localhost;Port=5432;Database=orders;Username=postgres;Password=sua-senha" --project src/OrderManagement.Api
-   ```
-
-2. No Visual Studio, selecione o perfil **IIS Express** e execute. O navegador abrirá em `https://localhost:44395/swagger`.
-
-   Pelo terminal, também é possível usar:
-
-   ```powershell
-   dotnet run --project src/OrderManagement.Api
-   ```
-
-As migrations EF Core são aplicadas no startup. Para criar uma nova migration, defina a mesma variável e execute:
+Na raiz do repositório, execute um único comando:
 
 ```powershell
-dotnet ef migrations add NomeDaMigration --project src/OrderManagement.Infrastructure --startup-project src/OrderManagement.Api --output-dir Persistence/Migrations
+docker compose --env-file .env.example up --build
 ```
 
-### Docker Compose
+O comando inicia frontend, API, Worker, PostgreSQL, RabbitMQ e pgAdmin, aplica as migrations automaticamente e mantém todas as portas restritas a `localhost`.
 
-1. Copie `.env.example` para `.env` e defina uma senha local para `POSTGRES_PASSWORD`.
-2. Suba a API e o PostgreSQL:
+Após a inicialização, acesse:
 
-   ```powershell
-   docker compose up --build
-   ```
+- Aplicação: http://localhost:3000/orders
+- Swagger: http://localhost:8080/swagger
+- RabbitMQ Management: http://localhost:15672
+- pgAdmin: http://localhost:5050
 
-O Compose aguarda o PostgreSQL estar saudável, a API aplica a migration automaticamente e o Swagger fica em `http://localhost:8080/swagger`. Para encerrar mantendo os dados, execute `docker compose down`.
+As credenciais locais de demonstração estão em [.env.example](.env.example). Para encerrar sem apagar os dados, use `docker compose down`.
 
-### Testes
+## Fluxo principal
 
-Os testes de domínio protegem a criação do pedido e as transições obrigatórias de status:
+1. A API cria o pedido como `Pendente` e grava `OrderCreated` na outbox na mesma transação.
+2. O publicador entrega o evento ao RabbitMQ com confirmação do broker.
+3. O Worker processa o pedido: `Pendente → Processando → Finalizado`, com cinco segundos entre as transições.
+4. O histórico é imutável, e o consumidor trata reentregas sem repetir efeitos.
+5. O frontend recebe atualizações por SSE e usa polling apenas como fallback para pedidos em andamento.
 
-```powershell
-dotnet test src/OrderManagement.sln --no-restore
-```
+## API
 
-Para validar a integração manualmente, suba o Compose, abra o Swagger, crie um pedido e consulte `GET /orders`. O pedido deve permanecer como `pendente` até a entrega do Worker no próximo incremento.
-
-## Endpoints disponíveis
-
-- `POST /orders` cria um pedido em `pendente`.
-- `GET /orders` lista pedidos, do mais recente para o mais antigo.
-- `GET /orders/{id}` retorna um pedido ou `404`.
-- `GET /health` verifica a API e o PostgreSQL.
-- `GET /health/live` verifica que o processo está vivo, sem depender do banco.
-
-Em ambiente `Development`, a documentação interativa está disponível em `/swagger`.
+- `POST /orders` cria um pedido.
+- `GET /orders` lista pedidos de forma paginada; `pageSize` aceita de 5 a 100 e o padrão é 5.
+- `GET /orders/{id}` consulta um pedido.
+- `GET /orders/{id}/history` consulta o histórico de status.
+- `GET /health` verifica API, PostgreSQL e RabbitMQ.
+- `GET /health/live` verifica somente o processo.
 
 Exemplo de criação:
 
@@ -71,12 +50,35 @@ Exemplo de criação:
 }
 ```
 
+## Validar
+
+A collection do Postman inclui todos os endpoints e um cenário de reentrega idempotente: [Order Management Challenge](docs/postman/order-management-challenge.postman_collection.json).
+
+Para verificar a suíte automatizada:
+
+```powershell
+dotnet test src/OrderManagement.sln
+
+Push-Location frontend
+npm ci
+npm run lint
+npm run test
+npm run build
+Pop-Location
+```
+
+Os testes de integração executam contra PostgreSQL e RabbitMQ reais e efêmeros via Testcontainers. O workflow de qualidade do GitHub valida build, testes, lint e cobertura.
+
 ## Decisões técnicas
 
-- **Monólito modular:** `Domain` não conhece HTTP, EF Core ou PostgreSQL; `Application` define casos de uso e portas; `Infrastructure` implementa persistência; `Api` fica só como adaptador HTTP. É mais simples de explicar e operar que microserviços, mas mantém fronteiras para API e worker evoluírem separadamente.
-- **Transições no domínio:** o agregado `Order` permite apenas `Pendente → Processando → Finalizado`. Assim, qualquer futuro consumidor de mensagem reutiliza a mesma regra e não depende de uma validação exclusiva do controller.
-- **PostgreSQL + EF Core:** o mapeamento usa precisão `numeric(18,2)` para dinheiro, evita erro de ponto flutuante e mantém a migration versionada junto ao código.
-- **Contrato HTTP em português e `snake_case`:** `cliente`, `produto`, `valor`, `status` e `data_criacao` tornam a API explícita para o desafio sem expor a entidade do EF Core.
-- **Health checks separados:** readiness (`/health`) inclui o banco; liveness (`/health/live`) não inclui dependências externas, evitando reinícios indevidos quando o PostgreSQL estiver temporariamente indisponível.
-- **Segredos fora do repositório:** a string de conexão vem de `ConnectionStrings__OrdersDatabase`; `.env.example` só documenta o formato e `.env` continua ignorado pelo Git.
-- **HTTPS por ambiente:** IIS Express mantém redirecionamento HTTPS. O Compose local o desabilita porque expõe apenas HTTP; no deploy, o proxy reverso será responsável por TLS e essa configuração continuará explícita.
+- **Monólito modular:** separa domínio, casos de uso, infraestrutura e adaptadores HTTP sem introduzir complexidade de microserviços.
+- **Transactional Outbox:** mantém estado e evento na mesma transação, reduzindo o risco entre persistência e publicação.
+- **Entrega at-least-once + idempotência:** ACK manual, retry, DLQ e regras de transição no domínio tornam reentregas seguras.
+- **SSE com fallback:** atualização leve em tempo real sem exigir WebSocket; polling condicional preserva o funcionamento em caso de desconexão.
+- **Containers locais:** a pilha completa é reproduzível com Compose, com health checks e migrations no startup.
+
+## Documentação
+
+- [Arquitetura e fluxo confiável](docs/architecture.md)
+- [Matriz de requisitos e evidências](docs/challenge-requirements.md)
+- [Collection Postman](docs/postman/order-management-challenge.postman_collection.json)

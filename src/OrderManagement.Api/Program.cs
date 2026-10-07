@@ -5,7 +5,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using OrderManagement.Application.Orders;
 using OrderManagement.Infrastructure;
+using OrderManagement.Infrastructure.Observability;
 using OrderManagement.Infrastructure.Persistence;
+using OrderManagement.Infrastructure.Messaging;
+using OrderManagement.Api.Realtime;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,8 +24,12 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddOrderManagementObservability(builder.Configuration, "order-management-api");
 builder.Services.AddScoped<OrderService>();
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<OrderStatusEventHub>();
+builder.Services.AddHostedService<OrderStatusEventConsumer>();
+builder.Services.AddHostedService<OutboxPublisherWorker>();
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<OrdersDbContext>("postgresql", failureStatus: HealthStatus.Unhealthy);
 
@@ -72,3 +79,5 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => fa
 #endregion
 
 app.Run();
+
+public partial class Program;

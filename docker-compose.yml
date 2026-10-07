@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -16,6 +16,39 @@ services:
       retries: 10
       start_period: 10s
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      # The management interface is exposed only by the local Compose environment.
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  pgadmin:
+    image: dpage/pgadmin4:8.14
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"from urllib.request import urlopen; assert urlopen('http://localhost/misc/ping').read() == b'PING'\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   api:
     build:
       context: .
@@ -24,10 +57,30 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       HttpsRedirection__Enabled: "false"
       ConnectionStrings__OrdersDatabase: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__Username: ${RABBITMQ_USER}
+      RabbitMq__Password: ${RABBITMQ_PASSWORD}
+      RabbitMq__Exchange: ${RABBITMQ_EXCHANGE}
+      RabbitMq__Queue: ${RABBITMQ_QUEUE}
+      RabbitMq__RoutingKey: ${RABBITMQ_ROUTING_KEY}
+      RabbitMq__ErrorExchange: ${RABBITMQ_ERROR_EXCHANGE}
+      RabbitMq__ErrorQueue: ${RABBITMQ_ERROR_QUEUE}
+      RabbitMq__ErrorRoutingKey: ${RABBITMQ_ERROR_ROUTING_KEY}
+      RabbitMq__RetryExchange: ${RABBITMQ_RETRY_EXCHANGE}
+      RabbitMq__RetryQueue: ${RABBITMQ_RETRY_QUEUE}
+      RabbitMq__RetryRoutingKey: ${RABBITMQ_RETRY_ROUTING_KEY}
+      RabbitMq__RetryDelayMilliseconds: ${RABBITMQ_RETRY_DELAY_MILLISECONDS}
+      RabbitMq__MaxDeliveryAttempts: ${RABBITMQ_MAX_DELIVERY_ATTEMPTS}
+      RabbitMq__StatusExchange: ${RABBITMQ_STATUS_EXCHANGE}
+      RabbitMq__StatusQueue: ${RABBITMQ_STATUS_QUEUE}
+      RabbitMq__StatusRoutingKey: ${RABBITMQ_STATUS_ROUTING_KEY}
     ports:
-      - "${API_PORT:-8080}:8080"
+      - "127.0.0.1:${API_PORT:-8080}:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://localhost:8080/health/live || exit 1"]
@@ -35,6 +88,60 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  worker:
+    build:
+      context: .
+      dockerfile: src/OrderManagement.Worker/Dockerfile
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: 8081
+      ConnectionStrings__OrdersDatabase: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__Username: ${RABBITMQ_USER}
+      RabbitMq__Password: ${RABBITMQ_PASSWORD}
+      RabbitMq__Exchange: ${RABBITMQ_EXCHANGE}
+      RabbitMq__Queue: ${RABBITMQ_QUEUE}
+      RabbitMq__RoutingKey: ${RABBITMQ_ROUTING_KEY}
+      RabbitMq__ErrorExchange: ${RABBITMQ_ERROR_EXCHANGE}
+      RabbitMq__ErrorQueue: ${RABBITMQ_ERROR_QUEUE}
+      RabbitMq__ErrorRoutingKey: ${RABBITMQ_ERROR_ROUTING_KEY}
+      RabbitMq__RetryExchange: ${RABBITMQ_RETRY_EXCHANGE}
+      RabbitMq__RetryQueue: ${RABBITMQ_RETRY_QUEUE}
+      RabbitMq__RetryRoutingKey: ${RABBITMQ_RETRY_ROUTING_KEY}
+      RabbitMq__RetryDelayMilliseconds: ${RABBITMQ_RETRY_DELAY_MILLISECONDS}
+      RabbitMq__MaxDeliveryAttempts: ${RABBITMQ_MAX_DELIVERY_ATTEMPTS}
+      RabbitMq__StatusExchange: ${RABBITMQ_STATUS_EXCHANGE}
+      RabbitMq__StatusQueue: ${RABBITMQ_STATUS_QUEUE}
+      RabbitMq__StatusRoutingKey: ${RABBITMQ_STATUS_ROUTING_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8081/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
   postgres-data:
