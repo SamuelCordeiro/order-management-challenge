@@ -103,7 +103,7 @@ public sealed class OrderProcessingWorker(
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var repository = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
-        var statusPublisher = scope.ServiceProvider.GetRequiredService<IOrderStatusChangedPublisher>();
+        var statusOutbox = scope.ServiceProvider.GetRequiredService<IOrderEventOutbox>();
         var order = await repository.GetByIdWithHistoryAsync(message.OrderId, cancellationToken)
             ?? throw new InvalidOperationException($"Order {message.OrderId} was not found.");
 
@@ -114,8 +114,8 @@ public sealed class OrderProcessingWorker(
         {
             var occurredAt = timeProvider.GetUtcNow();
             order.StartProcessing(occurredAt, message.MessageId);
+            await EnqueueStatusChangedAsync(statusOutbox, order, message, occurredAt, cancellationToken);
             await repository.SaveChangesAsync(cancellationToken);
-            await PublishStatusChangedAsync(statusPublisher, order, message, occurredAt, cancellationToken);
         }
 
         await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
@@ -124,18 +124,18 @@ public sealed class OrderProcessingWorker(
         {
             var occurredAt = timeProvider.GetUtcNow();
             order.Complete(occurredAt, message.MessageId);
+            await EnqueueStatusChangedAsync(statusOutbox, order, message, occurredAt, cancellationToken);
             await repository.SaveChangesAsync(cancellationToken);
-            await PublishStatusChangedAsync(statusPublisher, order, message, occurredAt, cancellationToken);
         }
     }
 
-    private static Task PublishStatusChangedAsync(
-        IOrderStatusChangedPublisher publisher,
+    private static Task EnqueueStatusChangedAsync(
+        IOrderEventOutbox outbox,
         Order order,
         OrderCreated sourceMessage,
         DateTimeOffset occurredAt,
         CancellationToken cancellationToken) =>
-        publisher.PublishAsync(
+        outbox.EnqueueAsync(
             new OrderStatusChanged(
                 MessageId: Guid.NewGuid(),
                 OrderId: order.Id,

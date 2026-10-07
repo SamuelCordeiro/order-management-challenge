@@ -19,6 +19,7 @@ public static class DependencyInjection
 
         services.AddDbContext<OrdersDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IOrderRepository, EfOrderRepository>();
+        services.AddScoped<IOrderEventOutbox, EfOrderEventOutbox>();
         services.AddHealthChecks()
             .AddCheck<RabbitMqHealthCheck>("rabbitmq", failureStatus: HealthStatus.Unhealthy);
         services.AddOptions<RabbitMqOptions>()
