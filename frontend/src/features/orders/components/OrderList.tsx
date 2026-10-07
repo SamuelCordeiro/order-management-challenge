@@ -7,7 +7,7 @@ import type { OrderSortKey, PagedOrders, SortDirection } from '../api/ordersApi'
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { OrderStatusChip } from './OrderStatusChip';
 
-const sortableColumns: { key: OrderSortKey; labelKey: string }[] = [
+const sortableColumns: ReadonlyArray<{ key: OrderSortKey; labelKey: string }> = [
   { key: 'cliente', labelKey: 'orders.customer' }, { key: 'produto', labelKey: 'orders.product' },
   { key: 'valor', labelKey: 'orders.amount' }, { key: 'status', labelKey: 'orders.status' },
   { key: 'data_criacao', labelKey: 'orders.createdAt' }
@@ -22,10 +22,17 @@ interface OrderListProps {
   onPageSizeChange: (pageSize: number) => void;
 }
 
-export function OrderList({ data, sortBy, sortDirection, onSortChange, onPageChange, onPageSizeChange }: OrderListProps) {
+export function OrderList({ data, sortBy, sortDirection, onSortChange, onPageChange, onPageSizeChange }: Readonly<OrderListProps>) {
   const { i18n, t } = useTranslation();
   const compact = useMediaQuery(useTheme().breakpoints.down('sm'));
-  const requestSort = (nextKey: OrderSortKey) => onSortChange(nextKey, nextKey === sortBy ? (sortDirection === 'asc' ? 'desc' : 'asc') : nextKey === 'data_criacao' ? 'desc' : 'asc');
+  const requestSort = (nextKey: OrderSortKey) => {
+    if (nextKey !== sortBy) {
+      onSortChange(nextKey, nextKey === 'data_criacao' ? 'desc' : 'asc');
+      return;
+    }
+
+    onSortChange(nextKey, sortDirection === 'asc' ? 'desc' : 'asc');
+  };
   const pagination = <TablePagination component="div" count={data.total_count} labelDisplayedRows={({ from, to, count }) => t('orders.pagination.displayedRows', { from, to, count })} labelRowsPerPage={t('orders.pagination.rowsPerPage')} onPageChange={(_, nextPage) => onPageChange(nextPage + 1)} onRowsPerPageChange={(event) => onPageSizeChange(Number(event.target.value))} page={data.page - 1} rowsPerPage={data.page_size} rowsPerPageOptions={[5, 10, 25, 50]} />;
 
   if (compact) return <Stack spacing={2}>

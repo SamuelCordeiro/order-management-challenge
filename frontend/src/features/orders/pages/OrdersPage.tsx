@@ -8,15 +8,16 @@ import { OrderSummary } from '../components/OrderSummary';
 import { useOrders } from '../hooks/useOrders';
 import type { OrderSortKey, SortDirection } from '../api/ordersApi';
 
-const sortKeys: OrderSortKey[] = ['cliente', 'produto', 'valor', 'status', 'data_criacao'];
-const pageSizes = [5, 10, 25, 50];
+const sortKeys = new Set<OrderSortKey>(['cliente', 'produto', 'valor', 'status', 'data_criacao']);
+const pageSizes = new Set([5, 10, 25, 50]);
 
 export function OrdersPage() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
-  const pageSize = pageSizes.includes(Number(searchParams.get('pageSize'))) ? Number(searchParams.get('pageSize')) : 5;
-  const sortBy = sortKeys.includes(searchParams.get('sortBy') as OrderSortKey) ? searchParams.get('sortBy') as OrderSortKey : 'data_criacao';
+  const pageSize = pageSizes.has(Number(searchParams.get('pageSize'))) ? Number(searchParams.get('pageSize')) : 5;
+  const requestedSort = searchParams.get('sortBy') as OrderSortKey;
+  const sortBy = sortKeys.has(requestedSort) ? requestedSort : 'data_criacao';
   const sortDirection: SortDirection = searchParams.get('sortDirection') === 'asc' ? 'asc' : 'desc';
   const { data, isError, isFetching, isPending, refetch } = useOrders({ page, pageSize, sortBy, sortDirection });
 

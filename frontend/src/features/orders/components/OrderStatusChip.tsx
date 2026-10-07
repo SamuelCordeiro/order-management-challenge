@@ -8,7 +8,7 @@ const statusOptions: Record<OrderStatus, { color: 'warning' | 'info' | 'success'
   finalizado: { color: 'success' }
 };
 
-export function OrderStatusChip({ status }: { status: OrderStatus }) {
+export function OrderStatusChip({ status }: Readonly<{ status: OrderStatus }>) {
   const { t } = useTranslation();
   const option = statusOptions[status];
   return <Chip color={option.color} label={t(`orders.statuses.${status}`)} size="small" />;
