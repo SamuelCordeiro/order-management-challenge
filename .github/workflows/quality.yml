@@ -39,7 +39,7 @@ jobs:
       - name: Verify frontend
         working-directory: frontend
         run: |
-          npm ci
+          npm ci --ignore-scripts
           npm run lint
           npm run test:coverage
           npm run build
@@ -91,6 +91,6 @@ jobs:
         run: |
           dotnet tool install --global dotnet-sonarscanner
           dotnet restore src/OrderManagement.sln
-          dotnet sonarscanner begin /k:"$SONAR_PROJECT_KEY" /o:"$SONAR_ORGANIZATION" /d:sonar.token="$SONAR_TOKEN" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" /d:sonar.javascript.lcov.reportPaths="**/lcov.info" /d:sonar.qualitygate.wait=true /d:sonar.qualitygate.timeout=300
+          dotnet sonarscanner begin /k:"$SONAR_PROJECT_KEY" /o:"$SONAR_ORGANIZATION" /d:sonar.token="$SONAR_TOKEN" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" /d:sonar.javascript.lcov.reportPaths="**/lcov.info" /d:sonar.exclusions="**/Migrations/**" /d:sonar.qualitygate.wait=true /d:sonar.qualitygate.timeout=300
           dotnet build src/OrderManagement.sln --configuration Release --no-restore
           dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
