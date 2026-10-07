@@ -1,0 +1,345 @@
+{
+  "info": {
+    "_postman_id": "2b610dc0-1cb0-4e2d-aa0d-e8a2e4f3d71f",
+    "name": "Order Management Challenge",
+    "description": "Collection for the Order Management Challenge API and the RabbitMQ-backed idempotency demonstration. Start Docker Compose before running requests. Running the full idempotency folder again creates a new order by design. To repeat the idempotency assertion for the same order, rerun only steps 3, 4 and 5 after step 2 has captured the baseline history.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "rabbitManagementUrl",
+      "value": "http://localhost:15672"
+    },
+    {
+      "key": "rabbitUsername",
+      "value": "orders"
+    },
+    {
+      "key": "rabbitPassword",
+      "value": "change-me"
+    },
+    {
+      "key": "orderId",
+      "value": ""
+    },
+    {
+      "key": "historyCount",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Readiness",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('reports healthy dependencies', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('Healthy');",
+                  "  pm.expect(body.checks.postgresql).to.eql('Healthy');",
+                  "  pm.expect(body.checks.rabbitmq).to.eql('Healthy');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          }
+        },
+        {
+          "name": "Liveness",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health/live"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orders API",
+      "item": [
+        {
+          "name": "Create order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 201', function () { pm.response.to.have.status(201); });",
+                  "const order = pm.response.json();",
+                  "pm.collectionVariables.set('orderId', order.id);",
+                  "pm.test('creates a pending order', function () {",
+                  "  pm.expect(order.id).to.be.a('string');",
+                  "  pm.expect(order.status).to.eql('pendente');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": \"Postman Demo\",\n  \"produto\": \"Notebook\",\n  \"valor\": 4999.90\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/orders"
+          }
+        },
+        {
+          "name": "List orders",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns an array', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json()).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/orders"
+          }
+        },
+        {
+          "name": "Get order by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/orders/{{orderId}}"
+          }
+        },
+        {
+          "name": "Get order status history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/orders/{{orderId}}/history"
+          }
+        },
+        {
+          "name": "SSE status stream (manual)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "url": "{{baseUrl}}/orders/events"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Idempotency demonstration",
+      "description": "Run steps 1 through 5 once. Step 1 always creates a new order, so running the full folder twice creates two orders by design. To repeat the idempotency test for the same finalized order, keep the collection orderId and historyCount variables and rerun only steps 3, 4 and 5. RabbitMQ credentials come from the collection variables and should match .env.",
+      "item": [
+        {
+          "name": "1. Create order for idempotency",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 201', function () { pm.response.to.have.status(201); });",
+                  "const order = pm.response.json();",
+                  "pm.collectionVariables.set('orderId', order.id);",
+                  "pm.test('starts pending', function () { pm.expect(order.status).to.eql('pendente'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": \"Idempotency Demo\",\n  \"produto\": \"Mouse\",\n  \"valor\": 99.90\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/orders"
+          }
+        },
+        {
+          "name": "2. Get baseline history after finalization",
+          "description": "Wait at least seven seconds after the previous request. The expected history has Pendente, Processando and Finalizado.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('has the three expected transitions', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const history = pm.response.json();",
+                  "  pm.expect(history.map(entry => entry.status)).to.eql(['pendente', 'processando', 'finalizado']);",
+                  "  pm.collectionVariables.set('historyCount', String(history.length));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/orders/{{orderId}}/history"
+          }
+        },
+        {
+          "name": "3. Publish duplicate OrderCreated via RabbitMQ",
+          "description": "This intentionally republishes the event for an already finalized order. The API has no endpoint for this operation; RabbitMQ Management is used only to demonstrate consumer idempotency locally.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('RabbitMQ accepted the publication', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().routed).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{rabbitUsername}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{rabbitPassword}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"properties\": {\n    \"delivery_mode\": 2,\n    \"content_type\": \"application/json\"\n  },\n  \"routing_key\": \"order.created.v1\",\n  \"payload\": \"{\\\"messageId\\\":\\\"{{$guid}}\\\",\\\"orderId\\\":\\\"{{orderId}}\\\",\\\"correlationId\\\":\\\"{{orderId}}\\\",\\\"eventType\\\":\\\"OrderCreated\\\",\\\"occurredAt\\\":\\\"{{$isoTimestamp}}\\\"}\",\n  \"payload_encoding\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{rabbitManagementUrl}}/api/exchanges/%2F/order.events/publish"
+          }
+        },
+        {
+          "name": "4. Verify final status after duplicate",
+          "description": "Wait a few seconds after publishing the duplicate message.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('order remains finalized', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().status).to.eql('finalizado');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/orders/{{orderId}}"
+          }
+        },
+        {
+          "name": "5. Verify history was not duplicated",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('history count is unchanged', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().length).to.eql(Number(pm.collectionVariables.get('historyCount')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/orders/{{orderId}}/history"
+          }
+        }
+      ]
+    }
+  ]
+}
