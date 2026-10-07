@@ -133,7 +133,7 @@
                 "exec": [
                   "pm.test('returns an array', function () {",
                   "  pm.response.to.have.status(200);",
-                  "  pm.expect(pm.response.json()).to.be.an('array');",
+                  "  pm.expect(pm.response.json().items).to.be.an('array');",
                   "});"
                 ]
               }
@@ -142,7 +142,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/orders"
+            "url": "{{baseUrl}}/orders?page=1&pageSize=5&sortBy=data_criacao&sortDirection=desc"
           }
         },
         {

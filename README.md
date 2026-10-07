@@ -34,7 +34,7 @@ As credenciais locais de demonstração estão em [.env.example](.env.example). 
 ## API
 
 - `POST /orders` cria um pedido.
-- `GET /orders` lista pedidos.
+- `GET /orders` lista pedidos de forma paginada; `pageSize` aceita de 5 a 100 e o padrão é 5.
 - `GET /orders/{id}` consulta um pedido.
 - `GET /orders/{id}/history` consulta o histórico de status.
 - `GET /health` verifica API, PostgreSQL e RabbitMQ.

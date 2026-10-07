@@ -16,3 +16,12 @@ public sealed record OrderStatusHistoryResponse(
     OrderStatus Status,
     DateTimeOffset OcorridoEm,
     string Origem);
+
+public sealed record PagedOrdersResponse(
+    IReadOnlyList<OrderResponse> Items,
+    int Page,
+    int PageSize,
+    int TotalCount,
+    OrderSummaryResponse Summary);
+
+public sealed record OrderSummaryResponse(int Total, int Pendentes, int Processando, int Finalizados);
